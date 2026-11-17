@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>BADER: THE CITY</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101820;color:#f4f7f8;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+#wrap{height:100dvh;display:flex;flex-direction:column;background:linear-gradient(160deg,#172c36,#0d151c)}
+header{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;background:#101b22;border-bottom:1px solid #30434c}
+.brand{font-weight:900;letter-spacing:1px;font-size:18px}.brand span{color:#8de0c0}
+.stats{display:flex;gap:8px;font-size:12px}.pill{background:#233640;padding:6px 9px;border-radius:20px}
+#scene{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px}
+canvas{width:min(100%,900px);height:100%;max-height:680px;object-fit:contain;border-radius:14px;border:1px solid #40555e;background:#7b9977;touch-action:none}
+#toast{position:absolute;top:18px;left:50%;transform:translateX(-50%);background:#10222be8;border:1px solid #66817e;border-radius:12px;padding:8px 13px;font-size:13px;white-space:nowrap;max-width:90%;text-align:center}
+#mission{position:absolute;right:18px;top:18px;background:#10222be8;border:1px solid #66817e;border-radius:12px;padding:9px 12px;font-size:12px;max-width:190px}
+footer{padding:9px 12px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;background:#101b22}
+#hint{font-size:11px;color:#b8c9cc;line-height:1.5;flex:1}
+.controls{display:grid;grid-template-columns:repeat(3,42px);grid-template-rows:repeat(2,36px);gap:4px;direction:ltr}
+.controls button,.action{border:1px solid #526b72;background:#263c45;color:white;border-radius:10px;font-size:17px;touch-action:none}
+.controls button:active,.action:active{background:#477568}
+.controls .up{grid-column:2}.controls .left{grid-column:1;grid-row:2}.controls .down{grid-column:2;grid-row:2}.controls .right{grid-column:3;grid-row:2}
+.actions{display:flex;flex-direction:column;gap:5px}.action{padding:8px 12px;font-size:12px;font-weight:700}
+@media(min-width:700px){footer{padding:12px 22px}.controls{grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,40px)}}
+</style>
+</head>
+<body>
+<div id="wrap">
+<header><div class="brand">BADER <span>THE CITY</span></div><div class="stats"><div class="pill">💵 <b id="cash">500</b></div><div class="pill">⭐ مستوى <b id="level">1</b></div></div></header>
+<div id="scene">
+<canvas id="game" width="900" height="620" aria-label="لعبة مدينة بدر"></canvas>
+<div id="mission">🎯 المهمة: وصل إلى نقطة التسليم الذهبية</div>
+<div id="toast">أهلاً بدر! تحرّك بالأسهم أو الأزرار</div>
+</div>
+<footer>
+<div id="hint">تحرّك في المدينة واجمع المكافآت. اقترب من العلامة الذهبية واضغط «تفاعل» لإكمال المهمة.</div>
+<div class="controls">
+<button class="up" data-key="ArrowUp">▲</button><button class="left" data-key="ArrowLeft">◀</button><button class="down" data-key="ArrowDown">▼</button><button class="right" data-key="ArrowRight">▶</button>
+</div>
+<div class="actions"><button class="action" id="interact">تفاعل</button><button class="action" id="car">🚗 تبديل المركبة</button></div>
+</footer>
+</div>
+<script>
+(()=>{
+const c=document.getElementById('game'),ctx=c.getContext('2d'),W=900,H=620;
+let cash=500,level=1,carMode=false,toastTimer=0,missionDone=false;
+const player={x:130,y:490,a:0,speed:2.5};
+const target={x:740,y:140};
+const keys={};
+const buildings=[
+[45,55,150,105,'#c8b99b'],[255,45,155,125,'#b9c4bd'],[480,50,150,105,'#d2c5a7'],[700,45,150,120,'#b7c2bd'],
+[40,255,160,115,'#b6c4b8'],[265,255,140,125,'#d4c5a8'],[485,260,155,110,'#b6bdad'],[710,260,145,125,'#c6b99f'],
+[45,475,140,95,'#c5b69b'],[280,470,145,100,'#b7c5bd'],[510,470,145,100,'#d0c1a4'],[730,470,120,95,'#b8c3b8']
+];
+function say(t){document.getElementById('toast').textContent=t;toastTimer=180}
+function draw(){
+ ctx.clearRect(0,0,W,H);ctx.fillStyle='#789675';ctx.fillRect(0,0,W,H);
+ // roads
+ ctx.fillStyle='#414d51';ctx.fillRect(0,190,W,48);ctx.fillRect(0,405,W,48);ctx.fillRect(205,0,42,H);ctx.fillRect(445,0,42,H);ctx.fillRect(675,0,42,H);
+ ctx.strokeStyle='#d9d3a2';ctx.lineWidth=2;ctx.setLineDash([18,15]);
+ [214,429].forEach(y=>{ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()});
+ [226,466,696].forEach(x=>{ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()});ctx.setLineDash([]);
+ // buildings and roofs
+ buildings.forEach((b,i)=>{ctx.fillStyle='rgba(0,0,0,.18)';ctx.fillRect(b[0]+7,b[1]+8,b[2],b[3]);ctx.fillStyle=b[4];ctx.fillRect(...b.slice(0,4));ctx.fillStyle='#87978d';ctx.fillRect(b[0]+12,b[1]+12,b[2]-24,12);
+ for(let x=b[0]+18;x<b[0]+b[2]-10;x+=30)for(let y=b[1]+34;y<b[1]+b[3]-12;y+=27){ctx.fillStyle='#6c898b';ctx.fillRect(x,y,12,10)}
+ ctx.fillStyle='#5c6256';ctx.fillRect(b[0]+b[2]/2-12,b[1]+b[3]-22,24,22);
+ });
+ // palm trees
+ for(let i=0;i<14;i++){let x=(i*137+80)%870,y=(i*83+20)%600;if((y>185&&y<245)||(y>400&&y<460)||(x>200&&x<250)||(x>440&&x<490)||(x>670&&x<720))continue;ctx.fillStyle='#70553b';ctx.fillRect(x-3,y,6,15);ctx.fillStyle='#245b43';for(let a=0;a<6;a++){let an=a*Math.PI/3;ctx.beginPath();ctx.ellipse(x+Math.cos(an)*10,y+Math.sin(an)*7,13,4,an,0,Math.PI*2);ctx.fill()}}
+ // destination marker
+ if(!missionDone){ctx.beginPath();ctx.arc(target.x,target.y,20+Math.sin(Date.now()/180)*4,0,Math.PI*2);ctx.strokeStyle='#ffd45a';ctx.lineWidth=4;ctx.stroke();ctx.fillStyle='#ffdc70';ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.fillText('★',target.x,target.y+7)}
+ // player
+ ctx.save();ctx.translate(player.x,player.y);ctx.rotate(player.a);
+ if(carMode){ctx.fillStyle='#d85e48';ctx.fillRect(-19,-11,38,22);ctx.fillStyle='#a9d2d8';ctx.fillRect(-8,-8,15,16);ctx.fillStyle='#171d20';ctx.fillRect(-14,-14,9,4);ctx.fillRect(7,-14,9,4);ctx.fillRect(-14,10,9,4);ctx.fillRect(7,10,9,4)}
+ else{ctx.fillStyle='#172c39';ctx.beginPath();ctx.arc(0,0,12,0,Math.PI*2);ctx.fill();ctx.fillStyle='#f0c59e';ctx.beginPath();ctx.arc(0,-3,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(-8,8,16,7)}
+ ctx.restore();
+ ctx.fillStyle='#fff';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText('BADER',player.x,player.y-23);
+ // small minimap
+ ctx.fillStyle='#14242bdc';ctx.fillRect(770,500,112,104);ctx.strokeStyle='#d8e7dc';ctx.strokeRect(770,500,112,104);ctx.fillStyle='#91aa91';ctx.fillRect(778,508,96,88);ctx.fillStyle='#e6c35b';ctx.beginPath();ctx.arc(778+target.x/W*96,508+target.y/H*88,4,0,Math.PI*2);ctx.fill();ctx.fillStyle='#e56c55';ctx.beginPath();ctx.arc(778+player.x/W*96,508+player.y/H*88,4,0,Math.PI*2);ctx.fill();
+}
+function update(){
+ let dx=0,dy=0;if(keys.ArrowUp||keys.w)dy=-1;if(keys.ArrowDown||keys.s)dy=1;if(keys.ArrowLeft||keys.a)dx=-1;if(keys.ArrowRight||keys.d)dx=1;
+ if(dx||dy){let len=Math.hypot(dx,dy);dx/=len;dy/=len;player.x+=dx*player.speed*(carMode?1.65:1);player.y+=dy*player.speed*(carMode?1.65:1);player.a=Math.atan2(dy,dx)}
+ player.x=Math.max(18,Math.min(W-18,player.x));player.y=Math.max(18,Math.min(H-18,player.y));
+ // building collision
+ for(const b of buildings){if(player.x>b[0]-12&&player.x<b[0]+b[2]+12&&player.y>b[1]-12&&player.y<b[1]+b[3]+12){player.x-=dx*player.speed*(carMode?1.65:1);player.y-=dy*player.speed*(carMode?1.65:1)}}
+ if(!missionDone&&Math.hypot(player.x-target.x,player.y-target.y)<38){document.getElementById('mission').textContent='🎯 وصلت! اضغط تفاعل لاستلام المكافأة'}
+ draw();requestAnimationFrame(update)
+}
+function interact(){if(!missionDone&&Math.hypot(player.x-target.x,player.y-target.y)<55){missionDone=true;cash+=750;level=2;document.getElementById('cash').textContent=cash;document.getElementById('level').textContent=level;document.getElementById('mission').textContent='✅ المهمة الأولى اكتملت!';say('كفو يا بدر! استلمت 750 دولار وارتقيت للمستوى 2');}else say('اقترب من العلامة الذهبية أولاً لإكمال المهمة')}
+document.getElementById('interact').onclick=interact;
+document.getElementById('car').onclick=()=>{carMode=!carMode;player.speed=2.5;say(carMode?'ركبت سيارتك الرياضية!':'ترجلت من السيارة')};
+window.addEventListener('keydown',e=>{keys[e.key]=true;if(e.key===' '||e.key==='Enter')interact()});
+window.addEventListener('keyup',e=>keys[e.key]=false);
+document.querySelectorAll('[data-key]').forEach(btn=>{let k=btn.dataset.key;btn.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true});['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,()=>keys[k]=false))});
+update();
+})();
+</script>
+</body></html>
